@@ -1,0 +1,16 @@
+# LoRA training requirements
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.25.0
+diffusers>=0.21.0
+accelerate>=0.20.0
+peft>=0.4.0
+bitsandbytes>=0.40.0
+wandb
+Pillow>=9.0.0
+numpy
+tqdm
+matplotlib
+tensorboard
+datasets
+xformers  # For memory efficient attention

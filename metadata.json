@@ -1,0 +1,5 @@
+{
+  "name": "AI Floor Plan Generator",
+  "description": "A web application to generate conceptual floor plan images based on user-specified grid dimensions. This MVP uses a mock backend to simulate image generation.",
+  "requestFramePermissions": []
+}
