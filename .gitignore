@@ -7,22 +7,32 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build artifacts
 node_modules
 dist
 dist-ssr
+
+# Local environment files
+.env.local
 *.local
 
-# Generated files and directories
+# Generated data and models
 /dataset/
 /generated/
+training/lora_model/
+training/prepared_data/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Python cache and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# OS specific files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# IDE specific files
+.vscode/
+!.vscode/extensions.json
+.idea/

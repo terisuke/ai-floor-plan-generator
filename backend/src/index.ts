@@ -26,9 +26,8 @@ app.post('/api/generate-floor-plan', async (req, res) => {
 
     console.log(`Generating floor plan with dimensions: ${width}x${height}`);
 
-    // Temporarily use simple floor plan generator while AI model is being fine-tuned
-    // To switch back to AI generation, change to: '../../inference/generate_floor_plan.py'
-    const pythonScriptPath = path.join(__dirname, '../../inference/simple_floor_plan.py');
+    // Using LoRA-finetuned model for improved floor plan generation
+    const pythonScriptPath = path.join(__dirname, '../../inference/generate_floor_plan_lora.py');
     const outputDir = path.join(__dirname, '../../generated');
     
     await fs.mkdir(outputDir, { recursive: true });
