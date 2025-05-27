@@ -5,7 +5,7 @@ Floor plan generation with LoRA-finetuned model
 import argparse
 import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
-from peft import PeftModel
+from peft import PeftModel, LoraConfig
 from PIL import Image
 import os
 import sys
@@ -40,9 +40,16 @@ def generate_floor_plan_with_lora(width: int, height: int, output_path: str, lor
         # Load LoRA weights if available
         if lora_path and os.path.exists(lora_path):
             print(f"Loading LoRA weights from: {lora_path}")
-            # Load the LoRA weights into the UNet
-            pipe.unet = PeftModel.from_pretrained(pipe.unet, lora_path)
-            print("LoRA weights loaded successfully!")
+            try:
+                # Load LoRA weights using PEFT
+                pipe.unet = PeftModel.from_pretrained(pipe.unet, lora_path)
+                print("LoRA weights loaded successfully using PEFT!")
+                # Don't merge - keep LoRA as adapter
+                # pipe.unet = pipe.unet.merge_and_unload()
+                # print("LoRA weights merged into base model")
+            except Exception as e:
+                print(f"Error loading LoRA weights with PEFT: {e}")
+                print("Continuing with base model")
         else:
             print("No LoRA weights found, using base model")
         
@@ -73,34 +80,109 @@ def generate_floor_plan_with_lora(width: int, height: int, output_path: str, lor
         # Generate image
         generator = torch.Generator(device=device).manual_seed(42)
         
-        image = pipe(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            width=pixel_width,
-            height=pixel_height,
-            num_inference_steps=30,
-            guidance_scale=7.5,
-            generator=generator
-        ).images[0]
+        with torch.no_grad():
+            result = pipe(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                width=pixel_width,
+                height=pixel_height,
+                num_inference_steps=30,
+                guidance_scale=7.5,
+                generator=generator
+            )
         
-        # Post-process to ensure white background
+        image = result.images[0]
+        
+        # Convert PIL image to numpy array for analysis
         img_array = np.array(image)
         
-        # Check if image is mostly dark
-        if np.mean(img_array) < 50:
-            print("Warning: Generated image is too dark, inverting colors")
+        # Check if the image has valid data
+        if np.isnan(img_array).any() or np.isinf(img_array).any():
+            print("ERROR: Image contains NaN or Inf values!")
+            # Try to salvage the image
+            img_array = np.nan_to_num(img_array, nan=128.0, posinf=255.0, neginf=0.0)
+            
+        # Check the actual value range
+        if img_array.max() <= 1.0 and img_array.min() >= 0.0:
+            print("Debug - Image appears to be in [0,1] range, converting to [0,255]")
+            img_array = (img_array * 255).astype(np.uint8)
+        else:
+            # Ensure values are in valid range [0, 255]
+            img_array = np.clip(img_array, 0, 255).astype(np.uint8)
+        
+        # Check if image is mostly uniform color
+        std_dev = np.std(img_array)
+        
+        if std_dev < 5:
+            print(f"ERROR: Image has very low variance (std={std_dev}), might be blank!")
+            
+            # Fallback: Try generating without LoRA
+            if lora_path and os.path.exists(lora_path):
+                print("Falling back to base model without LoRA...")
+                
+                # Reload base model
+                pipe = StableDiffusionPipeline.from_pretrained(
+                    model_id,
+                    torch_dtype=torch.float16 if device.type != "cpu" else torch.float32,
+                    use_safetensors=True
+                )
+                pipe = pipe.to(device)
+                pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+                
+                if hasattr(pipe, "enable_attention_slicing"):
+                    pipe.enable_attention_slicing()
+                
+                # Generate with base model
+                with torch.no_grad():
+                    result = pipe(
+                        prompt=prompt,
+                        negative_prompt=negative_prompt,
+                        width=pixel_width,
+                        height=pixel_height,
+                        num_inference_steps=30,
+                        guidance_scale=8.0,  # Slightly higher for base model
+                        generator=generator
+                    )
+                
+                image = result.images[0]
+                img_array = np.array(image)
+                print(f"Fallback - Image stats: min={img_array.min()}, max={img_array.max()}, mean={img_array.mean():.2f}")
+                
+                # Check if fallback image needs inversion
+                if np.mean(img_array) < 50:
+                    print("Fallback image is dark, inverting colors")
+                    img_array = 255 - img_array
+                    image = Image.fromarray(img_array.astype('uint8'))
+        
+        # Check if image needs inversion
+        mean_value = np.mean(img_array)
+        if mean_value < 50:
+            print(f"Warning: Generated image is too dark (mean={mean_value}), inverting colors")
             img_array = 255 - img_array
-            image = Image.fromarray(img_array.astype('uint8'))
+        elif mean_value > 240:
+            print(f"Warning: Generated image is very bright (mean={mean_value}), checking if it's blank")
+            # Check if it's actually a blank white image
+            if std_dev < 10:
+                print("ERROR: Image appears to be blank white!")
+        
+        # Convert back to PIL Image
+        image = Image.fromarray(img_array)
         
         # Save the image
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        print(f"Attempting to save image to: {output_path}")
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         image.save(output_path)
         print(f"Floor plan saved to: {output_path}")
         
         return True
         
     except Exception as e:
+        import traceback
         print(f"Error generating floor plan: {str(e)}", file=sys.stderr)
+        print(f"Full error traceback:", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         return False
 
 def main():
@@ -119,9 +201,16 @@ def main():
     
     # Default LoRA path if not specified
     if not args.lora:
+        # Try improved model first
+        improved_lora = os.path.join(os.path.dirname(__file__), "../training/lora_model_improved/best")
         default_lora = os.path.join(os.path.dirname(__file__), "../training/lora_model/final")
-        if os.path.exists(default_lora):
+        
+        if os.path.exists(improved_lora):
+            args.lora = improved_lora
+            print(f"Using improved LoRA model from: {improved_lora}")
+        elif os.path.exists(default_lora):
             args.lora = default_lora
+            print(f"Using default LoRA model from: {default_lora}")
     
     # Generate the floor plan
     success = generate_floor_plan_with_lora(args.width, args.height, args.output, args.lora)

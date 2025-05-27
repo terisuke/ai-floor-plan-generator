@@ -1,0 +1,63 @@
+{
+  "grid_px": 107.5,
+  "grid_mm": 910,
+  "floor": "2F",
+  "layout_bounds": {
+    "width_grids": 8,
+    "height_grids": 9
+  },
+  "major_zones": [
+    {
+      "type": "living",
+      "approximate_grids": 22,
+      "priority": 1
+    },
+    {
+      "type": "private",
+      "approximate_grids": 16,
+      "priority": 2
+    },
+    {
+      "type": "service",
+      "approximate_grids": 8,
+      "priority": 3
+    },
+    {
+      "type": "circulation",
+      "approximate_grids": 8,
+      "priority": 3
+    }
+  ],
+  "structural_elements": [
+    {
+      "type": "stair",
+      "grid_x": 5,
+      "grid_y": 1.4,
+      "grid_width": 0.4,
+      "grid_height": 0.4,
+      "name": "stair_1"
+    },
+    {
+      "type": "balcony",
+      "grid_x": 4.2,
+      "grid_y": 2.9,
+      "grid_width": 0.6,
+      "grid_height": 0.8,
+      "name": "balcony_2"
+    }
+  ],
+  "total_approximate_area": 54,
+  "element_summary": {
+    "total_elements": 2,
+    "stair_count": 1,
+    "entrance_count": 0,
+    "balcony_count": 1
+  },
+  "annotation_metadata": {
+    "annotator_version": "v2.0_structural_focus",
+    "annotation_time": "2025-05-27T05:06:06.899Z",
+    "floor_type": "2F",
+    "grid_resolution": "8x9",
+    "drawing_scale": "1:100"
+  }
+}

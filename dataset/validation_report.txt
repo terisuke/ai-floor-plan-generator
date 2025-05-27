@@ -1,0 +1,15 @@
+
+=== Dataset Validation Report ===
+Total PNG files: 1
+Total JSON files: 1
+Structural format: 1
+Legacy format: 0
+
+Validation Results:
+- Errors: 0
+- Warnings: 1
+
+Status: ✓ PASS
+
+Warnings:
+  - plan_2535h135_2f (2).png: Should end with '_1f' or '_2f'
